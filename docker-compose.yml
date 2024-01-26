@@ -1,0 +1,76 @@
+services:
+  database:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=myDatabase
+      - POSTGRES_USER=databaseUser
+      - POSTGRES_PASSWORD=databasePassword
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks:
+      - network
+    healthcheck:
+      test: pg_isready -U databaseUser -d myDatabase
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  back:
+    image: java
+    container_name: back
+    build:
+      context: back/
+      dockerfile: Dockerfile
+    ports:
+      - 8080:8080
+    environment:
+      - spring.datasource.url=jdbc:postgresql://postgres:5432/myDatabase
+      - spring.datasource.username=databaseUser
+      - spring.datasource.password=databasePassword
+      - s3.buckets.illustrations=toto
+      - S3.buckets.photos=tata
+      - s3.hostname=http://192.168.1.32:9000
+      - s3.access_key=u2Ym7FT5RDxdmtl7WmVb
+      - s3.secret_key=RKfzYhiXnEUqxTpCrDTokBhqtLeVvSwf7rQCEd2I
+    depends_on:
+      database:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: curl http://localhost:8080/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - network
+  front:
+    image: front
+    container_name: front
+    build:
+      context: front/
+      dockerfile: Dockerfile
+    ports:
+      - 8888:80
+    environment:
+      - BACKEND_URL=http://localhost:8080
+    depends_on:
+      back:
+        condition: service_healthy
+  minio:
+    image: bitnami/minio
+    container_name: minio
+    ports:
+      - 9000:9000
+      - 9001:9001
+    environment:
+      - MINIO_ROOT_USER=root
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_DEFAULT_BUCKETS=toto,tata
+    volumes:
+      - minio:/bitnami/minio/data
+
+volumes:
+  database:
+  minio:
+networks:
+  network:
